@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>竞价一进二</title>
+<style>
+:root{--bg:#0b1020;--cd:#141b30;--ln:#2a3350;--t:#e8ecf5;--m:#8a94b0;--up:#ff4d4f;--gd:#ffc53d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:14px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;padding:calc(env(safe-area-inset-top) + 8px) 12px calc(env(safe-area-inset-bottom) + 16px)}
+h1{margin:4px 0;text-align:center;color:var(--up);font-size:24px}.sub{text-align:center;color:var(--m);font-size:12px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}.tag{padding:2px 8px;border-radius:10px;background:#2a1a1a;color:#ff9c6e;font-size:12px}
+button{background:#1f2a4a;color:var(--t);border:1px solid var(--ln);border-radius:8px;padding:6px 12px}button.p{background:var(--up);border:0}
+.f{background:var(--cd);border:1px solid var(--ln);border-radius:10px;padding:8px 10px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.f label{font-size:12px;color:var(--m)}.f input[type=number]{width:52px;background:#0b1020;color:var(--t);border:1px solid var(--ln);border-radius:6px;padding:3px}
+.c{background:var(--cd);border:1px solid var(--ln);border-radius:12px;padding:10px 12px;margin-top:10px}.c.top{border-color:#6b5a1e}
+.r1{display:flex;justify-content:space-between;align-items:center}.nm{font-weight:700;font-size:16px}.cd{color:var(--gd);font-family:monospace;margin-left:6px;font-size:12px}
+.sc{font-size:28px;font-weight:800;color:#ff9c5a}.g{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px;font-size:12px;color:var(--m)}.g b{color:var(--t);display:block;font-size:14px}
+.up{color:var(--up)!important}.dn{color:#2fbf71!important}.red{color:#ff7875;font-size:12px}small{color:var(--m)}
+</style></head><body>
+<h1>竞价一进二</h1><div class="sub">主板昨日首板 · 竞价评分 · 重点：竞昨比 + 竞价倍数</div>
+<div class="bar"><span class="tag" id="mode">加载中</span><span id="clk" style="margin-left:auto;font-family:monospace"></span></div>
+<div class="bar"><button class="p" onclick="run(1)">重新选股/锁定</button><button onclick="tick()">刷新涨幅</button>
+<label class="sub">首板日期 <input id="pd" size="8" style="width:80px;background:#0b1020;color:#e8ecf5;border:1px solid #2a3350;border-radius:6px;padding:3px"></label></div>
+<div class="f" id="flt">
+<label>竞价涨幅 <input type="number" id="a1" value="3">~<input type="number" id="a2" value="8">%</label>
+<label>流通市值 <input type="number" id="m1" value="10">~<input type="number" id="m2" value="230">亿</label>
+<label>股价 <input type="number" id="p1" value="2">~<input type="number" id="p2" value="100">元</label>
+<label><input type="checkbox" id="st" checked> 剔除ST</label></div>
+<p class="sub" id="msg"></p><div id="out"></div>
+<p class="sub">评分(100)：竞价涨幅15 + 竞昨比28 + 竞价倍数27 + 封单质量15 + 板块地位15<br>红线：竞价翻绿或竞昨比&lt;0.5% → 最高45分<br>竞昨比=竞价额÷昨日成交额；竞价倍数=竞价额÷昨日竞价额(无历史时按1.5%估算，标"估")<br>仅供研究，不构成投资建议</p>
+<script>
+const W={pct:15,jz:28,bs:27,fd:15,bk:15},EST=.015,$=s=>document.querySelector(s);
+const ymd=d=>d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+const ld=k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const ramp=(x,a,b)=>Math.max(0,Math.min(1,(x-a)/(b-a)));
+let d=new Date();do{d.setDate(d.getDate()-1)}while(d.getDay()%6==0);$('#pd').value=ymd(d);
+let pool=[],rows=[],real=false;
+function jsonp(u){return new Promise((ok,no)=>{const cb='cb'+Math.random().toString(36).slice(2),s=document.createElement('script'),to=setTimeout(()=>{x();no('超时')},8000);
+function x(){clearTimeout(to);delete window[cb];s.remove()}window[cb]=r=>{x();ok(r)};s.onerror=()=>{x();no('加载失败')};s.src=u+'&cb='+cb;document.head.appendChild(s)})}
+function quotes(cs){return new Promise((ok,no)=>{const q=cs.map(c=>(c[0]=='6'?'sh':'sz')+c),s=document.createElement('script');s.charset='gbk';
+s.onload=()=>{const o={};cs.forEach((c,i)=>{const v=window['v_'+q[i]];if(v){const f=v.split('~');o[c]={pre:+f[4],open:+f[5],px:+f[3],pct:+f[32],amt:+f[37]*1e4,mv:+f[44]*1e8}}});s.remove();Object.keys(o).length?ok(o):no('无行情')};
+s.onerror=()=>{s.remove();no('行情加载失败')};s.src='https://qt.gtimg.cn/q='+q.join(',')+'&_='+Date.now();document.head.appendChild(s)})}
+async function loadPool(){const r=await jsonp('https://push2ex.eastmoney.com/getTopicZTPool?ut=7eea3edcaed734bea9cbfc24409ed989&dpt=wz.ztzt&Pageindex=0&pagesize=400&sort=fbt%3Aasc&date='+$('#pd').value);
+return r.data.pool.filter(x=>x.lbc==1&&/^(60|00)/.test(x.c)).map(x=>({c:x.c,n:x.n,amt:x.amount,mv:x.ltsz,fund:x.fund,fbt:x.fbt,zbc:x.zbc,hy:x.hybk}))}
+function build(q){const hm=new Date().getHours()*100+new Date().getMinutes(),k='auc_'+ymd(new Date()),yk='auc_'+$('#pd').value;
+let sn=ld(k)||{};const live=hm>=925&&hm<930,yv=ld(yk)||{};
+return pool.filter(p=>q[p.c]).map(p=>{const z=q[p.c];if(live||(hm<925&&0))sn[p.c]={ap:(z.open/z.pre-1)*100,amt:z.amt};
+const a=sn[p.c]||(z.open>0?{ap:(z.open/z.pre-1)*100,amt:null}:{ap:null,amt:null});
+const jz=a.amt!=null?a.amt/p.amt*100:null,ya=yv[p.c]?yv[p.c].amt:null,est=!ya,bs=a.amt!=null?a.amt/(ya||p.amt*EST):null;
+return{c:p.c,n:p.n,ap:a.ap,jz,bs,est,fr:p.fund/p.mv*100,zbc:p.zbc,fbt:p.fbt,hy:p.hy,rt:z.pct,mv:z.mv||p.mv,px:z.px}}).map(s=>{sv(k,sn);return s})}
+function demo(){const D=[['永达股份','001239',5.15,7.2,2.4,3.1,0,93500,'汽车零部件',10,48,12.3],['粤传媒','002181',4.64,5.8,1.9,2.2,1,101200,'传媒',9.97,60,7.1],['百洋股份','002696',3.97,4.4,1.3,4.0,0,94200,'食品',10.04,35,6.2],['示例甲','000001',6.2,2.1,.9,1.1,2,132000,'传媒',3.2,90,15],['示例乙','600001',-.8,6,2.5,2.5,0,92500,'汽车零部件',1.1,80,9]];
+return D.map(x=>({n:x[0],c:x[1],ap:x[2],jz:x[3],bs:x[4],est:0,fr:x[5],zbc:x[6],fbt:x[7],hy:x[8],rt:x[9],mv:x[10]*1e8,px:x[11]}))}
+function score(L){const n={},e={};L.forEach(s=>{n[s.hy]=(n[s.hy]||0)+1;if(!e[s.hy]||s.fbt<e[s.hy])e[s.hy]=s.fbt});
+return L.map(s=>{const f={pct:s.ap==null?0:s.ap<=5?ramp(s.ap,0,5):1-.3*ramp(s.ap,5,9),jz:s.jz==null?0:ramp(s.jz,1,10),bs:s.bs==null?0:ramp(s.bs,.5,3),
+fd:ramp(s.fr,.5,4)*.7+(s.zbc==0?.2:0)+(s.fbt<=100000?.1:0),bk:ramp(n[s.hy],1,6)*.7+(e[s.hy]==s.fbt?.3:0)};
+let t=0;for(const k in W)t+=W[k]*f[k];const red=s.ap!=null&&s.ap<0||s.jz!=null&&s.jz<.5;if(red)t=Math.min(t,45);return{...s,f,sc:Math.round(t),red}}).sort((a,b)=>b.sc-a.sc)}
+function ok(s){const g=id=>+$(id).value;if(s.ap==null)return 0;return s.ap>=g('#a1')&&s.ap<=g('#a2')&&s.mv/1e8>=g('#m1')&&s.mv/1e8<=g('#m2')&&s.px>=g('#p1')&&s.px<=g('#p2')&&!($('#st').checked&&/ST/.test(s.n))}
+const f1=(x,u='')=>x==null?'--':x.toFixed(2)+u;
+function render(){const L=rows.filter(ok);$('#out').innerHTML=L.length?L.map((s,i)=>`<div class="c ${i<3?'top':''}"><div class="r1"><div><span class="nm">${['🥇','🥈','🥉'][i]||''}${s.n}</span><span class="cd">${s.c}</span><br><small>${s.hy||''} · 昨日首板</small></div><div class="sc">${s.sc}分</div></div>
+<div class="g"><div>竞价涨幅<b>${f1(s.ap,'%')}</b></div><div>竞昨比<b>${f1(s.jz,'%')}</b></div><div>竞价倍数<b>${f1(s.bs,'x')}${s.est&&s.bs!=null?'估':''}</b></div><div>封单比<b>${f1(s.fr,'%')}</b></div><div>炸板<b>${s.zbc}次</b></div><div>实时涨幅<b class="${s.rt>=0?'up':'dn'}">${s.rt>=0?'+':''}${f1(s.rt,'%')}</b></div></div>${s.red?'<div class="red">⚠ 触发红线：封顶45分</div>':''}</div>`).join(''):'<p class="sub">没有符合筛选条件的股票</p>'}
+async function tick(){if(!real)return;try{const q=await quotes(pool.map(p=>p.c));rows=score(build(q));render()}catch(e){$('#msg').textContent=e}}
+async function run(){$('#msg').textContent='加载中…';try{pool=await loadPool();if(!pool.length)throw'该日期无首板数据';const q=await quotes(pool.map(p=>p.c));real=true;rows=score(build(q));$('#mode').textContent='实时数据';$('#msg').textContent='首板池 '+pool.length+' 只'}
+catch(e){real=false;rows=score(demo());$('#mode').textContent='演示数据';$('#msg').textContent='实时数据获取失败('+e+')，当前为演示数据'}render()}
+document.querySelectorAll('#flt input').forEach(i=>i.onchange=render);
+setInterval(()=>{$('#clk').textContent=new Date().toTimeString().slice(0,8);if(new Date().getSeconds()%5==0)tick()},1000);run();
+</script></body></html>
